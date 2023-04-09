@@ -22,7 +22,7 @@ func ConnectDB() {
 	password := os.Getenv("MYSQL_PASSWORD")
 	host := os.Getenv("MYSQL_HOST")
 	port := os.Getenv("MYSQL_PORT")
-	dbName := os.Getenv("MYSQL_NAME")
+	dbName := os.Getenv("MYSQL_DBNAME")
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", user, password, host, port, dbName)
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
