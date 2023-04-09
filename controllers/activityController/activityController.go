@@ -90,7 +90,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseSuccess(w, http.StatusOK, activity)
+	responseSuccess(w, http.StatusCreated, activity)
 
 }
 
@@ -114,33 +114,64 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var updateActivity struct {
-		ActivityID uint   `gorm:"primaryKey" json:"id"`
-		Title      string `gorm:"not null;type:varchar(255)" json:"title" validate:"min=1"`
-		Email      string `gorm:"type:varchar(255)" json:"email" validate:"email,min=1"`
-	}
+	var updateActivity map[string]interface{}
 	err = json.NewDecoder(r.Body).Decode(&updateActivity)
 	if err != nil {
 		responseError(w, http.StatusBadRequest, "Error", "Invalid Request Body")
-
 		return
 	}
-	err = validate.Struct(updateActivity)
-	if err != nil {
-		validationErrors := err.(validator.ValidationErrors)
-		for _, fieldError := range validationErrors {
-			if fieldError.Tag() == "min" {
-				message := strings.ToLower(fieldError.Field()) + " cannot be null"
-				responseError(w, http.StatusBadRequest, "Bad Request", message)
+
+	if len(updateActivity) == 1 {
+		for field, value := range updateActivity {
+			switch field {
+			case "title":
+				if err = validate.Var(value, "required,min=1"); err != nil {
+					responseError(w, http.StatusBadRequest, "Bad Request", "title cannot be null")
+					return
+				}
+				if err := database.DB.Model(&activity).Update("title", value).Error; err != nil {
+					responseError(w, http.StatusInternalServerError, "Error", err.Error())
+					return
+				}
+				responseSuccess(w, http.StatusOK, activity)
 				return
-			} else if fieldError.Tag() == "email" {
-				message := strings.ToLower(fieldError.Field()) + " format doesnt valid"
-				responseError(w, http.StatusBadRequest, "Bad Request", message)
+			case "email":
+				if err = validate.Var(value, "required,email"); err != nil {
+					responseError(w, http.StatusBadRequest, "Bad Request", "Invalid email format")
+					return
+				}
+				if err := database.DB.Model(&activity).Update("email", value).Error; err != nil {
+					responseError(w, http.StatusInternalServerError, "Error", err.Error())
+					return
+				}
+				responseSuccess(w, http.StatusOK, activity)
+				return
+			default:
+				responseError(w, http.StatusBadRequest, "Bad Request", "Invalid field name")
 				return
 			}
-
 		}
+	}
 
+	var updateFields []string
+	for field, value := range updateActivity {
+		switch field {
+		case "title":
+			if err = validate.Var(value, "required,min=1"); err != nil {
+				responseError(w, http.StatusBadRequest, "Bad Request", "title cannot be null")
+				return
+			}
+			updateFields = append(updateFields, "title")
+		case "email":
+			if err = validate.Var(value, "required,email"); err != nil {
+				responseError(w, http.StatusBadRequest, "Bad Request", "Invalid email format")
+				return
+			}
+			updateFields = append(updateFields, "email")
+		default:
+			responseError(w, http.StatusBadRequest, "Bad Request", "Invalid field name")
+			return
+		}
 	}
 
 	if err := database.DB.Model(&activity).Updates(updateActivity).Error; err != nil {

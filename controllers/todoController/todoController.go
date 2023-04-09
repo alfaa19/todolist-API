@@ -103,7 +103,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseSuccess(w, http.StatusOK, todo)
+	responseSuccess(w, http.StatusCreated, todo)
 }
 
 func Update(w http.ResponseWriter, r *http.Request) {
@@ -126,13 +126,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var updateTodo struct {
-		TodoID          uint   `gorm:"primaryKey" json:"id"`
-		ActivityGroupID uint   `json:"activity_group_id" validate:"number,gt=0"`
-		Title           string `gorm:"type:varchar(255)" json:"title" validate:"min=1"`
-		IsActive        bool   `gorm:"type:bool" json:"is_active" validate:"boolean"`
-		Priority        string `gorm:"type:varchar(55)" json:"priority" validate:"min=1"`
-	}
+	var updateTodo map[string]interface{}
 
 	err = json.NewDecoder(r.Body).Decode(&updateTodo)
 	if err != nil {
@@ -140,21 +134,91 @@ func Update(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	err = validate.Struct(updateTodo)
-	if err != nil {
-		validationErrors := err.(validator.ValidationErrors)
-		for _, fieldError := range validationErrors {
-			if fieldError.Tag() == "min" {
-				message := strings.ToLower(fieldError.Field()) + " cannot be null"
-				responseError(w, http.StatusBadRequest, "Bad Request", message)
+	if len(updateTodo) == 1 {
+		for field, value := range updateTodo {
+			switch field {
+			case "title":
+				if err = validate.Var(value, "required,min=1"); err != nil {
+					responseError(w, http.StatusBadRequest, "Bad Request", "title cannot be null")
+					return
+				}
+				if err := database.DB.Model(&todo).Update("title", value).Error; err != nil {
+					responseError(w, http.StatusInternalServerError, "Error", err.Error())
+					return
+				}
+				responseSuccess(w, http.StatusOK, todo)
 				return
-			} else {
-				responseError(w, http.StatusBadRequest, "Bad Request", err.Error())
+			case "activity_group_id":
+				if err = validate.Var(value, "required,number,gt=0"); err != nil {
+					responseError(w, http.StatusBadRequest, "Bad Request", "activity_group_id cannot be null")
+					return
+				}
+				if err := database.DB.Model(&todo).Update("activity_group_id", value).Error; err != nil {
+					responseError(w, http.StatusInternalServerError, "Error", err.Error())
+					return
+				}
+				responseSuccess(w, http.StatusOK, todo)
+				return
+			case "is_active":
+				if err = validate.Var(value, "required,boolean"); err != nil {
+					responseError(w, http.StatusBadRequest, "Bad Request", "is_active cannot be null")
+					return
+				}
+				if err := database.DB.Model(&todo).Update("is_active", value).Error; err != nil {
+					responseError(w, http.StatusInternalServerError, "Error", err.Error())
+					return
+				}
+				responseSuccess(w, http.StatusOK, todo)
+				return
+			case "priority":
+				if err = validate.Var(value, "required,boolean"); err != nil {
+					responseError(w, http.StatusBadRequest, "Bad Request", "priority cannot be null")
+					return
+				}
+				if err := database.DB.Model(&todo).Update("priority", value).Error; err != nil {
+					responseError(w, http.StatusInternalServerError, "Error", err.Error())
+					return
+				}
+				responseSuccess(w, http.StatusOK, todo)
+				return
+			default:
+				responseError(w, http.StatusBadRequest, "Bad Request", "Invalid field name")
 				return
 			}
-
 		}
+	}
 
+	var updateFields []string
+	for field, value := range updateTodo {
+		switch field {
+		case "title":
+			if err = validate.Var(value, "required,min=1"); err != nil {
+				responseError(w, http.StatusBadRequest, "Bad Request", "title cannot be null")
+				return
+			}
+			updateFields = append(updateFields, "title")
+		case "activity_group_id":
+			if err = validate.Var(value, "required,number,gt=0"); err != nil {
+				responseError(w, http.StatusBadRequest, "Bad Request", "Invalid activity_group_id format")
+				return
+			}
+			updateFields = append(updateFields, "activity_group_id")
+		case "is_active":
+			if err = validate.Var(value, "required,boolean"); err != nil {
+				responseError(w, http.StatusBadRequest, "Bad Request", "Invalid is_active format")
+				return
+			}
+			updateFields = append(updateFields, "activity_group_id")
+		case "priority":
+			if err = validate.Var(value, "required,min=1"); err != nil {
+				responseError(w, http.StatusBadRequest, "Bad Request", "Invalid priority format")
+				return
+			}
+			updateFields = append(updateFields, "activity_group_id")
+		default:
+			responseError(w, http.StatusBadRequest, "Bad Request", "Invalid field name")
+			return
+		}
 	}
 
 	if err := database.DB.Model(&todo).Updates(updateTodo).Error; err != nil {

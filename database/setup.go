@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/alfaa19/todolist-API/models"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -13,10 +14,10 @@ import (
 var DB *gorm.DB
 
 func ConnectDB() {
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	log.Fatal("Error Loading env file", err)
-	// }
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error Loading env file", err)
+	}
 
 	user := os.Getenv("MYSQL_USER")
 	password := os.Getenv("MYSQL_PASSWORD")
